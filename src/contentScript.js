@@ -4,6 +4,7 @@ const WATCH_PATH = '/watch';
 const state = {
   sidebar: null,
   summaryText: '',
+  transcriptText: '',
   initializedVideoId: null,
   processing: false,
 };
@@ -36,9 +37,23 @@ function ensureSidebar() {
   sidebar.id = 'my-yt-summarizer-sidebar';
 
   const header = document.createElement('header');
-  const title = document.createElement('span');
-  title.className = 'my-yt-summarizer-heading';
-  title.textContent = 'MY YT SUMMARIZER';
+
+  const copyTranscriptButton = document.createElement('button');
+  copyTranscriptButton.className = 'my-yt-summarizer-copy-transcript';
+  copyTranscriptButton.type = 'button';
+  copyTranscriptButton.textContent = 'Copy Transcript';
+  copyTranscriptButton.addEventListener('click', async () => {
+    if (!state.transcriptText) {
+      warn('Transcript not available to copy.');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(state.transcriptText);
+      log('Transcript copied to clipboard.');
+    } catch (err) {
+      error('Failed to copy transcript.', err);
+    }
+  });
 
   const copyButton = document.createElement('button');
   copyButton.className = 'my-yt-summarizer-copy';
@@ -66,7 +81,7 @@ function ensureSidebar() {
     sidebar.classList.remove('open');
   });
 
-  header.appendChild(title);
+  header.appendChild(copyTranscriptButton);
   header.appendChild(copyButton);
   header.appendChild(closeButton);
 
@@ -174,6 +189,7 @@ async function handleSummarizeClick() {
 
   const sidebar = ensureSidebar();
   sidebar.container.classList.add('open');
+  state.transcriptText = '';
 
   const videoTitle =
     document.querySelector('h1.ytd-watch-metadata')?.innerText?.trim() ?? 'Untitled video';
@@ -187,6 +203,7 @@ async function handleSummarizeClick() {
     });
 
     const transcript = await collectTranscript();
+    state.transcriptText = transcript;
 
     if (!transcript || transcript.trim().length === 0) {
       throw new Error(
@@ -225,6 +242,7 @@ async function handleSummarizeClick() {
       summary: null,
       error: message,
     });
+    state.transcriptText = '';
   } finally {
     state.processing = false;
   }
