@@ -7,6 +7,7 @@ const state = {
   transcriptText: '',
   initializedVideoId: null,
   processing: false,
+  feedbackTimeoutId: null,
 };
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -45,13 +46,16 @@ function ensureSidebar() {
   copyTranscriptButton.addEventListener('click', async () => {
     if (!state.transcriptText) {
       warn('Transcript not available to copy.');
+      showClipboardFeedback('Transcript not ready yet.');
       return;
     }
     try {
       await navigator.clipboard.writeText(state.transcriptText);
       log('Transcript copied to clipboard.');
+      showClipboardFeedback('Transcript copied to clipboard.');
     } catch (err) {
       error('Failed to copy transcript.', err);
+      showClipboardFeedback('Failed to copy transcript.');
     }
   });
 
@@ -62,13 +66,16 @@ function ensureSidebar() {
   copyButton.addEventListener('click', async () => {
     if (!state.summaryText) {
       warn('Nothing to copy yet.');
+      showClipboardFeedback('No summary available yet.');
       return;
     }
     try {
       await navigator.clipboard.writeText(state.summaryText);
       log('Summary copied to clipboard.');
+      showClipboardFeedback('Summary copied to clipboard.');
     } catch (err) {
       error('Failed to copy summary.', err);
+      showClipboardFeedback('Failed to copy summary.');
     }
   });
 
@@ -81,9 +88,15 @@ function ensureSidebar() {
     sidebar.classList.remove('open');
   });
 
+  const feedback = document.createElement('div');
+  feedback.className = 'my-yt-summarizer-feedback my-yt-summarizer-hidden';
+  feedback.setAttribute('role', 'status');
+  feedback.setAttribute('aria-live', 'polite');
+
   header.appendChild(copyTranscriptButton);
   header.appendChild(copyButton);
   header.appendChild(closeButton);
+  header.appendChild(feedback);
 
   const main = document.createElement('section');
   main.id = 'my-yt-summarizer-sidebar-main';
@@ -116,9 +129,31 @@ function ensureSidebar() {
     status,
     summary,
     errorBox,
+    feedback,
   };
 
   return state.sidebar;
+}
+
+function showClipboardFeedback(message) {
+  const sidebar = ensureSidebar();
+
+  if (!sidebar.feedback) {
+    return;
+  }
+
+  sidebar.feedback.textContent = message;
+  sidebar.feedback.classList.remove('my-yt-summarizer-hidden');
+
+  if (state.feedbackTimeoutId) {
+    clearTimeout(state.feedbackTimeoutId);
+  }
+
+  state.feedbackTimeoutId = setTimeout(() => {
+    sidebar.feedback.classList.add('my-yt-summarizer-hidden');
+    sidebar.feedback.textContent = '';
+    state.feedbackTimeoutId = null;
+  }, 2000);
 }
 
 function updateSidebarState({ status, summary, error }) {

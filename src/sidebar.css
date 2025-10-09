@@ -52,6 +52,7 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.15);
   display: flex;
   gap: 12px;
+  flex-wrap: wrap;
   padding: 16px;
 }
 
@@ -91,6 +92,14 @@
 .my-yt-summarizer-copy-transcript:hover {
   background: rgba(255, 255, 255, 0.12);
   border-color: rgba(255, 255, 255, 0.5);
+}
+
+.my-yt-summarizer-feedback {
+  color: #90caf9;
+  flex-basis: 100%;
+  font-size: 12px;
+  font-weight: 500;
+  margin-top: 4px;
 }
 
 .my-yt-summarizer-copy {
