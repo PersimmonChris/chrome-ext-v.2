@@ -52,9 +52,17 @@ async function summarizeTranscript({ transcript, title }) {
   const systemPrompt = [
     'You are a helpful assistant that summarizes YouTube video transcripts.',
     'Always respond in the same language used in the transcript.',
-    'Return a concise multi-paragraph summary that highlights the main ideas.',
-    'Do not hallucinate details that are not present in the transcript.',
-  ].join(' ');
+    '',
+    "Return a detailed Markdown summary that preserves the speaker's original tone and vocabulary.",
+    'Use headings (H1, H2, H3) to structure the content clearly.',
+    '',
+    'Do not add or interpret meaning.',
+    'Do not hallucinate details not present in the transcript.',
+    '',
+    'The output should read like a structured transcript summary, not bullet points or analysis.',
+    '',
+    'Output only the final Markdown text.',
+  ].join('\n');
 
   const userPrompt = [
     `Video title: ${title ?? 'Untitled video'}`,

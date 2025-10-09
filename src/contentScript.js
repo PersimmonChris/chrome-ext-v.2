@@ -16,6 +16,51 @@ const log = (...args) => console.info(LOG_PREFIX, ...args);
 const warn = (...args) => console.warn(LOG_PREFIX, ...args);
 const error = (...args) => console.error(LOG_PREFIX, ...args);
 
+const escapeHtml = (text) =>
+  text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+function renderSimpleMarkdown(markdown) {
+  const lines = markdown.split('\n');
+  const html = [];
+  let paragraph = [];
+
+  const flushParagraph = () => {
+    if (paragraph.length === 0) {
+      return;
+    }
+    html.push(`<p>${paragraph.join(' ')}</p>`);
+    paragraph = [];
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+
+    if (!line.trim()) {
+      flushParagraph();
+      continue;
+    }
+
+    const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
+    if (headingMatch) {
+      flushParagraph();
+      const level = Math.min(3, headingMatch[1].length);
+      html.push(`<h${level}>${escapeHtml(headingMatch[2].trim())}</h${level}>`);
+      continue;
+    }
+
+    paragraph.push(escapeHtml(line.trim()));
+  }
+
+  flushParagraph();
+
+  return html.join('\n');
+}
+
 function isWatchPage() {
   return window.location.pathname === WATCH_PATH;
 }
@@ -167,7 +212,7 @@ function updateSidebarState({ status, summary, error }) {
   }
 
   if (typeof summary === 'string') {
-    sidebar.summary.textContent = summary;
+    sidebar.summary.innerHTML = renderSimpleMarkdown(summary);
     sidebar.summary.classList.remove('my-yt-summarizer-hidden');
     state.summaryText = summary;
   } else if (summary === null) {
