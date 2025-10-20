@@ -90,13 +90,11 @@ function ensureSidebar() {
   copyTranscriptButton.textContent = 'Copy Transcript';
   copyTranscriptButton.addEventListener('click', async () => {
     if (!state.transcriptText) {
-      warn('Transcript not available to copy.');
       showClipboardFeedback('Transcript not ready yet.');
       return;
     }
     try {
       await navigator.clipboard.writeText(state.transcriptText);
-      log('Transcript copied to clipboard.');
       showClipboardFeedback('Transcript copied to clipboard.');
     } catch (err) {
       error('Failed to copy transcript.', err);
@@ -110,13 +108,11 @@ function ensureSidebar() {
   copyButton.textContent = 'Copy Summary';
   copyButton.addEventListener('click', async () => {
     if (!state.summaryText) {
-      warn('Nothing to copy yet.');
       showClipboardFeedback('No summary available yet.');
       return;
     }
     try {
       await navigator.clipboard.writeText(state.summaryText);
-      log('Summary copied to clipboard.');
       showClipboardFeedback('Summary copied to clipboard.');
     } catch (err) {
       error('Failed to copy summary.', err);
@@ -158,7 +154,7 @@ function ensureSidebar() {
 
   const footerNote = document.createElement('div');
   footerNote.className = 'my-yt-summarizer-footer-note';
-  footerNote.textContent = 'Tip: keep this tab focused while the transcript loads.';
+  footerNote.textContent = '';
 
   main.appendChild(status);
   main.appendChild(summary);
@@ -252,18 +248,15 @@ function ensureSummarizeButton() {
   button.type = 'button';
   button.textContent = 'Summarize';
   button.addEventListener('click', async () => {
-    log('Summarize button clicked.');
     await handleSummarizeClick();
   });
 
   buttonContainer.appendChild(button);
   actionBar.appendChild(buttonContainer);
-  log('Summarize button injected.');
 }
 
 async function handleSummarizeClick() {
   if (state.processing) {
-    warn('Summarization already in progress.');
     return;
   }
 
@@ -329,13 +322,9 @@ async function handleSummarizeClick() {
 }
 
 async function collectTranscript() {
-  log('Starting transcript extraction.');
   const panel = await ensureTranscriptPanel();
-  log('Transcript panel located and expanded.');
   const transcript = await gatherTranscriptSegments(panel);
-  log('Transcript segments collected.');
   await collapseTranscriptPanel(panel);
-  log('Transcript panel collapsed.');
   return transcript;
 }
 
@@ -351,7 +340,6 @@ async function ensureTranscriptPanel() {
   });
 
   if (transcriptElements.length > 0) {
-    log('Found transcript element, clicking it...');
     transcriptElements[0].click();
     await wait(2000); // Wait longer for panel to fully load
   }
@@ -426,7 +414,7 @@ async function gatherTranscriptSegments(panel) {
     } else {
       stableIterations = 0;
       previousCount = segments.length;
-      log(`Loaded ${segments.length} transcript segments so far.`);
+      // Loading segments...
     }
   }
 
@@ -492,7 +480,6 @@ function handlePageUpdate() {
   }
 
   if (state.initializedVideoId !== videoId) {
-    log(`Detected video navigation. Current video id: ${videoId}`);
     resetForNewVideo(videoId);
   }
 
@@ -509,17 +496,14 @@ function bootstrap() {
   observer.observe(document.body, { childList: true, subtree: true });
 
   window.addEventListener('yt-navigate-finish', () => {
-    log('Navigation finish event detected.');
     handlePageUpdate();
   });
 
   window.addEventListener('yt-page-data-updated', () => {
-    log('YouTube page data updated.');
     handlePageUpdate();
   });
 
   handlePageUpdate();
-  log('Content script initialized.');
 }
 
 bootstrap();
