@@ -328,124 +328,145 @@ async function handleSummarizeClick() {
   }
 }
 
+// Heuristic: Try multiple strategies to open the transcript panel and collect segments.
 async function collectTranscript() {
   log('Starting transcript extraction.');
-  const panel = await ensureTranscriptPanel();
-  log('Transcript panel located and expanded.');
-  const transcript = await gatherTranscriptSegments(panel);
-  log('Transcript segments collected.');
-  await collapseTranscriptPanel(panel);
-  log('Transcript panel collapsed.');
-  return transcript;
+  // If transcript already open, proceed to collect.
+  let segments = collectTranscriptSegments();
+  if (!segments || segments.length === 0) {
+    await tryOpenTranscriptPanel();
+    // wait for panel to render
+    await wait(800);
+    await ensureTranscriptFullyLoaded();
+    segments = collectTranscriptSegments();
+  }
+  if (!segments || segments.length === 0) return null;
+  // Join all lines, stripping extra spaces
+  return segments.map(s => s.trim()).filter(Boolean).join('\n');
 }
 
-async function ensureTranscriptPanel() {
-  const start = performance.now();
-
-  const lookupPanel = () =>
-    document.querySelector(
-      'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"]',
-    );
-
-  let panel = lookupPanel();
-  const timeoutMs = 8000;
-
-  while (!panel && performance.now() - start < timeoutMs) {
-    await wait(250);
-    panel = lookupPanel();
+function collectTranscriptSegments() {
+  const candidates = [
+    'ytd-transcript-segment-renderer',
+    'ytd-transcript-renderer ytd-transcript-segment-renderer',
+    'ytd-transcript-segment-list-renderer #segments-container ytd-transcript-segment-renderer'
+  ];
+  let nodes = [];
+  for (const sel of candidates) {
+    nodes = Array.from(document.querySelectorAll(sel));
+    if (nodes.length) break;
   }
-
-  if (!panel) {
-    throw new Error('Transcript panel is not available on this video.');
-  }
-
-  panel.removeAttribute('hidden');
-  panel.removeAttribute('collapsed');
-  panel.style.display = 'block';
-  panel.style.visibility = 'visible';
-  panel.style.transform = 'translateX(0)';
-  panel.setAttribute('visibility', 'ENGAGEMENT_PANEL_VISIBILITY_EXPANDED');
-
-  const engagementContainer = panel.closest('ytd-engagement-panel');
-  if (engagementContainer) {
-    engagementContainer.removeAttribute('hidden');
-    engagementContainer.style.display = 'block';
-    engagementContainer.setAttribute('active-panel', 'engagement-panel-searchable-transcript');
-    engagementContainer.setAttribute('visibility', 'ENGAGEMENT_PANEL_VISIBILITY_EXPANDED');
-  }
-
-  await wait(300);
-  return panel;
+  if (!nodes.length) return [];
+  return nodes.map(n => {
+    const textNode = n.querySelector('.segment-text, .cue, yt-formatted-string, .segment-text-content');
+    const text = textNode ? textNode.innerText : n.innerText;
+    return (text || '').trim();
+  });
 }
 
-async function gatherTranscriptSegments(panel) {
-  const transcriptRenderer =
-    panel.querySelector('ytd-transcript-renderer') || panel.querySelector('#transcript');
-  if (!transcriptRenderer) {
-    throw new Error('Transcript renderer not found after opening panel.');
+async function ensureTranscriptFullyLoaded() {
+  // Scroll the transcript container to load all entries (virtualized list)
+  const scrollContainers = [
+    'ytd-transcript-renderer #segments-container',
+    'ytd-transcript-segment-list-renderer #segments-container',
+    'ytd-engagement-panel-section-list-renderer[section-identifier="engagement-panel-searchable-transcript"] #contents'
+  ];
+  let container = null;
+  for (const sel of scrollContainers) {
+    container = document.querySelector(sel);
+    if (container) break;
+  }
+  if (!container) return;
+
+  let lastCount = 0;
+  for (let i = 0; i < 60; i++) { // ~9s max
+    container.scrollTo({ top: container.scrollHeight, behavior: 'instant' });
+    await wait(150);
+    const segments = collectTranscriptSegments();
+    if (segments.length === lastCount) {
+      await wait(200);
+      const current = collectTranscriptSegments().length;
+      if (current === segments.length) break;
+    }
+    lastCount = segments.length;
+  }
+}
+
+function normalizeText(s = '') {
+  try {
+    return s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+  } catch { return (s || '').toLowerCase(); }
+}
+
+function isTranscriptLabel(el) {
+  const hints = [
+    'transcript',      // en
+    'trascriz',        // it: trascrizione
+    'transkrip',       // de/sk/cs variations
+    'transcrip',       // es/fr/pt stems
+    'transkript',      // da/no/sv
+    '文字記錄', '文字记录', '字幕', '抄本',
+  ];
+  const txt = normalizeText((el.textContent || '') + ' ' + (el.getAttribute?.('aria-label') || ''));
+  return hints.some(h => txt.includes(h));
+}
+
+async function tryOpenTranscriptPanel() {
+  // Strategy 0: Try dedicated toggles (locale-agnostic)
+  const toggleCandidates = [
+    '[target-id="engagement-panel-searchable-transcript"]',
+    '[data-target-id="engagement-panel-searchable-transcript"]',
+    'button[aria-controls="engagement-panel-searchable-transcript"]',
+    '[aria-controls*="transcript"]',
+  ];
+  for (const sel of toggleCandidates) {
+    const t = document.querySelector(sel);
+    if (!t) continue;
+    t.click();
+    await wait(700);
+    if (collectTranscriptSegments().length) return true;
   }
 
-  const scrollContainer =
-    transcriptRenderer.querySelector('#segments-container') ||
-    transcriptRenderer.querySelector('ytd-transcript-section-renderer #contents') ||
-    transcriptRenderer;
+  // Strategy 1: Direct click visible items with transcript-like labels
+  const clickable = Array.from(document.querySelectorAll('tp-yt-paper-item, ytd-menu-service-item-renderer, button, a'))
+    .filter(isTranscriptLabel);
+  for (const el of clickable) {
+    el.click();
+    await wait(600);
+    if (collectTranscriptSegments().length) return true;
+  }
 
-  let previousCount = 0;
-  let stableIterations = 0;
-  const maxIterations = 40;
-
-  for (let i = 0; i < maxIterations; i += 1) {
-    scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior: 'auto' });
-    await wait(200);
-    const segments = panel.querySelectorAll('ytd-transcript-segment-renderer');
-    if (segments.length === previousCount) {
-      stableIterations += 1;
-      if (stableIterations >= 3) {
-        break;
-      }
-    } else {
-      stableIterations = 0;
-      previousCount = segments.length;
-      log(`Loaded ${segments.length} transcript segments so far.`);
+  // Strategy 2: Open overflow menu then click transcript entry
+  const overflowSelectors = [
+    'ytd-watch-metadata ytd-menu-renderer yt-icon-button',
+    'ytd-menu-renderer yt-button-shape button[aria-haspopup="menu"]',
+    'ytd-watch-metadata #menu yt-icon-button',
+    'ytd-menu-renderer yt-icon-button',
+  ];
+  for (const sel of overflowSelectors) {
+    const moreBtn = document.querySelector(sel);
+    if (!moreBtn) continue;
+    moreBtn.click();
+    await wait(500);
+    const menuItems = Array.from(document.querySelectorAll('ytd-menu-popup-renderer tp-yt-paper-item, ytd-menu-popup-renderer ytd-menu-service-item-renderer'));
+    const showBtn = menuItems.find(isTranscriptLabel);
+    if (showBtn) {
+      showBtn.click();
+      await wait(800);
+      if (collectTranscriptSegments().length) return true;
     }
   }
 
-  const allSegments = Array.from(panel.querySelectorAll('ytd-transcript-segment-renderer'));
-  if (!allSegments.length) {
-    throw new Error('Transcript segments are empty after loading.');
+  // Strategy 3: Directly unhide the engagement panel if present
+  const panel = document.querySelector('ytd-engagement-panel-section-list-renderer[section-identifier="engagement-panel-searchable-transcript"]');
+  if (panel) {
+    panel.style.display = 'block';
+    panel.removeAttribute('hidden');
+    await wait(800);
+    if (collectTranscriptSegments().length) return true;
   }
 
-  const transcriptText = allSegments
-    .map((segment) => {
-      const text =
-        segment.querySelector('.segment-text')?.innerText ||
-        segment.querySelector('yt-formatted-string')?.innerText ||
-        '';
-      return text.trim();
-    })
-    .filter(Boolean)
-    .join(' ');
-
-  if (!transcriptText) {
-    throw new Error('Transcript text could not be read from the page.');
-  }
-
-  return transcriptText;
-}
-
-async function collapseTranscriptPanel(panel) {
-  panel.setAttribute('visibility', 'ENGAGEMENT_PANEL_VISIBILITY_HIDDEN');
-  panel.style.display = 'none';
-  panel.style.transform = '';
-
-  const engagementContainer = panel.closest('ytd-engagement-panel');
-  if (engagementContainer) {
-    engagementContainer.setAttribute('visibility', 'ENGAGEMENT_PANEL_VISIBILITY_HIDDEN');
-    engagementContainer.removeAttribute('active-panel');
-    engagementContainer.style.display = 'none';
-  }
-
-  await wait(150);
+  return false;
 }
 
 function resetForNewVideo(videoId) {

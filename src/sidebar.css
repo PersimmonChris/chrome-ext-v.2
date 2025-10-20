@@ -131,6 +131,78 @@
   white-space: pre-wrap;
 }
 
+/* Markdown styling for summary content */
+.my-yt-summarizer-summary h1,
+.my-yt-summarizer-summary h2,
+.my-yt-summarizer-summary h3,
+.my-yt-summarizer-summary h4,
+.my-yt-summarizer-summary h5,
+.my-yt-summarizer-summary h6 {
+  color: #f5f5f5;
+  font-weight: 600;
+  margin: 16px 0 8px 0;
+  line-height: 1.3;
+}
+
+.my-yt-summarizer-summary h1 {
+  font-size: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding-bottom: 8px;
+}
+
+.my-yt-summarizer-summary h2 {
+  font-size: 18px;
+}
+
+.my-yt-summarizer-summary h3 {
+  font-size: 16px;
+}
+
+.my-yt-summarizer-summary h4,
+.my-yt-summarizer-summary h5,
+.my-yt-summarizer-summary h6 {
+  font-size: 15px;
+}
+
+.my-yt-summarizer-summary p {
+  margin: 8px 0;
+}
+
+.my-yt-summarizer-summary ul,
+.my-yt-summarizer-summary ol {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.my-yt-summarizer-summary li {
+  margin: 4px 0;
+}
+
+.my-yt-summarizer-summary hr {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  margin: 16px 0;
+}
+
+.my-yt-summarizer-summary strong {
+  font-weight: 600;
+  color: #fff;
+}
+
+.my-yt-summarizer-summary em {
+  font-style: italic;
+  color: rgba(245, 245, 245, 0.9);
+}
+
+.my-yt-summarizer-summary code {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  padding: 2px 4px;
+  color: #90caf9;
+}
+
 .my-yt-summarizer-hidden {
   display: none !important;
 }
