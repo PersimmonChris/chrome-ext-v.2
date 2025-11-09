@@ -43,12 +43,6 @@ async function summarizeTranscript({ transcript, title }) {
     throw new Error('Extension is missing AI configuration. Run `npm run build` after creating your .env file.');
   }
 
-  const maxChars = 24000;
-  const safeTranscript =
-    trimmedTranscript.length > maxChars
-      ? `${trimmedTranscript.slice(0, maxChars)}\n\n[Transcript truncated due to length]`
-      : trimmedTranscript;
-
   const systemPrompt = [
     'You are a helpful assistant that summarizes YouTube video transcripts.',
     'Always respond in the same language used in the transcript.',
@@ -67,7 +61,7 @@ async function summarizeTranscript({ transcript, title }) {
   const userPrompt = [
     `Video title: ${title ?? 'Untitled video'}`,
     'Transcript:',
-    safeTranscript,
+    trimmedTranscript,
   ].join('\n\n');
 
   const url = `${GOOGLE_API_BASE}/models/${encodeURIComponent(
@@ -84,7 +78,7 @@ async function summarizeTranscript({ transcript, title }) {
     generationConfig: {
       temperature: 0.2,
       top_p: 0.9,
-      max_output_tokens: 1024,
+      max_output_tokens: 30000,
     },
   };
 
