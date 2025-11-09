@@ -16,6 +16,9 @@ const log = (...args) => console.info(LOG_PREFIX, ...args);
 const warn = (...args) => console.warn(LOG_PREFIX, ...args);
 const error = (...args) => console.error(LOG_PREFIX, ...args);
 
+const RUNTIME_RETRY_ATTEMPTS = 5;
+const RUNTIME_RETRY_DELAY_MS = 200;
+
 const escapeHtml = (text) =>
   text
     .replace(/&/g, '&amp;')
@@ -59,6 +62,74 @@ function renderSimpleMarkdown(markdown) {
   flushParagraph();
 
   return html.join('\n');
+}
+
+function detectRuntime() {
+  if (typeof chrome !== 'undefined' && chrome?.runtime && typeof chrome.runtime.sendMessage === 'function') {
+    return { namespace: 'chrome', runtime: chrome.runtime };
+  }
+
+  if (typeof browser !== 'undefined' && browser?.runtime && typeof browser.runtime.sendMessage === 'function') {
+    return { namespace: 'browser', runtime: browser.runtime };
+  }
+
+  return null;
+}
+
+async function waitForRuntime() {
+  for (let attempt = 0; attempt <= RUNTIME_RETRY_ATTEMPTS; attempt += 1) {
+    const runtimeInfo = detectRuntime();
+    if (runtimeInfo) {
+      return runtimeInfo;
+    }
+
+    if (attempt < RUNTIME_RETRY_ATTEMPTS) {
+      await wait(RUNTIME_RETRY_DELAY_MS);
+    }
+  }
+
+  return null;
+}
+
+function getRuntimeLastErrorMessage() {
+  if (typeof chrome !== 'undefined' && chrome?.runtime?.lastError?.message) {
+    return chrome.runtime.lastError.message;
+  }
+
+  if (typeof browser !== 'undefined' && browser?.runtime?.lastError?.message) {
+    return browser.runtime.lastError.message;
+  }
+
+  return null;
+}
+
+async function sendMessageToBackground(message) {
+  const runtimeInfo = await waitForRuntime();
+  if (!runtimeInfo || !runtimeInfo.runtime?.sendMessage) {
+    throw new Error(
+      'Extension messaging is unavailable. Reload the YouTube tab or the extension, then try again.',
+    );
+  }
+
+  if (runtimeInfo.namespace === 'browser') {
+    return runtimeInfo.runtime.sendMessage(message);
+  }
+
+  return new Promise((resolve, reject) => {
+    try {
+      runtimeInfo.runtime.sendMessage(message, (response) => {
+        const lastErrorMessage = getRuntimeLastErrorMessage();
+        if (lastErrorMessage) {
+          reject(new Error(lastErrorMessage));
+          return;
+        }
+
+        resolve(response);
+      });
+    } catch (err) {
+      reject(err);
+    }
+  });
 }
 
 function isWatchPage() {
@@ -290,7 +361,7 @@ async function handleSummarizeClick() {
       error: null,
     });
 
-    const response = await chrome.runtime.sendMessage({
+    const response = await sendMessageToBackground({
       type: 'SUMMARIZE_TRANSCRIPT',
       payload: {
         transcript,
